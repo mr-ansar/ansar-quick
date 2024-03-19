@@ -36,7 +36,7 @@ sections;
 
 * GROUP - comes for free with $ ansar and homes.
 * HOST - need the ansar/services directory-host
-* LAN - need the ansar/services lan-host
+* LAN - need the ansar/services directory-lan
 * WAN - need an ansar cloud account and directory
 
 Continue with exactly the same client-server combo. Move the server (i.e.
