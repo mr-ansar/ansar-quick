@@ -20,43 +20,64 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-'''A mimimal async, network service.
+'''A mimimal FSM, network client.
 
-Listen for inbound connections at a configured address. Established
-connections are expected to send an Enquiry and then close the
-connection. Termination is by user intervention, i.e. control-c.
+A finite-state-machine implementation of the Enquiry-Ack sessions. A plug-in
+replacement for connect-to-address or connect-session-to-address.
 '''
 import ansar.connect as ar
 
+# Client FSM object.
+class INITIAL: pass
+class PENDING: pass
+class CONNECTED: pass
 
-# Server object.
-def listen_at_address(self, settings):
-	# Establish the listen.
-	ipp = ar.HostPort(settings.host, settings.port)
-	ar.listen(self, ipp)
-	m = self.select(ar.Listening, ar.NotListening, ar.Stop)
-	if isinstance(m, ar.NotListening):
-		return m
-	elif isinstance(m, ar.Stop):
-		return ar.Aborted()
+class ConnectToAddress(ar.Point, ar.StateMachine):
+	def __init__(self, settings):
+		ar.Point.__init__(self)
+		ar.StateMachine.__init__(self, INITIAL)
+		self.settings = settings
 
-	# Ready for inbound connections and requests.
-	while True:
-		m = self.select(ar.Accepted, ar.Enquiry, ar.Abandoned, ar.Stop)
-		if isinstance(m, ar.Accepted):
-			self.console(f'Accepted at {m.accepted_ipp}')
-			continue
-		elif isinstance(m, ar.Abandoned):
-			self.console(f'Abandoned')
-			continue
-		elif isinstance(m, ar.Stop):	# Control-c.
-			return ar.Aborted()
+def ConnectToAddress_INITIAL_Start(self, message):
+	self.ipp = ar.HostPort(self.settings.host, self.settings.port)
+	ar.connect(self, self.ipp)
+	return PENDING
 
-		self.reply(ar.Ack())	# Respond to Enquiry
+def ConnectToAddress_PENDING_Connected(self, message):
+	self.reply(ar.Enquiry())
+	return CONNECTED
 
-ar.bind(listen_at_address)
+def ConnectToAddress_PENDING_NotConnected(self, message):
+	self.complete(message)
 
-# Configuration for this executable.
+def ConnectToAddress_PENDING_Stop(self, message):
+	self.complete(ar.Aborted())
+
+def ConnectToAddress_CONNECTED_Ack(self, message):
+	self.complete(message)
+
+def ConnectToAddress_CONNECTED_Abandoned(self, message):
+	self.complete(message)
+
+def ConnectToAddress_CONNECTED_Stop(self, message):
+	self.complete(ar.Aborted())
+
+CONNECT_TO_ADDRESS_DISPATCH = {
+	INITIAL: (
+		(ar.Start,), ()
+	),
+	PENDING: (
+		(ar.Connected, ar.NotConnected, ar.Stop), ()
+	),
+	CONNECTED: (
+		(ar.Ack, ar.Abandoned, ar.Stop,), ()
+	),
+}
+
+ar.bind(ConnectToAddress, CONNECT_TO_ADDRESS_DISPATCH)
+
+#
+#
 class Settings(object):
 	def __init__(self, host=None, port=None):
 		self.host = host
@@ -69,9 +90,7 @@ SETTINGS_SCHEMA = {
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
-# Initial values.
 factory_settings = Settings(host='127.0.0.1', port=32011)
 
-# Entry point.
 if __name__ == '__main__':
-	ar.create_object(listen_at_address, factory_settings=factory_settings)
+	ar.create_object(ConnectToAddress, factory_settings=factory_settings)

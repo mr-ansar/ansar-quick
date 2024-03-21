@@ -20,29 +20,39 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-'''A mimimal async, network service.
+'''A session-based async, network service.
 
-Listen for inbound connections at a configured address. Established
-connections are expected to send an Enquiry and then close the
-connection. Termination is by user intervention, i.e. control-c.
+A session-based implementation of the Enquiry-Ack sessions. A plug-in
+replacement for listen-at-address or listen-fsm-at-address.
 '''
 import ansar.connect as ar
 
+# Session object.
+def accepted_at_address(self, **kv):
+	while True:
+		m = self.select(ar.Enquiry, ar.Stop)
+		if isinstance(m, ar.Enquiry):
+			self.reply(ar.Ack())
+		elif isinstance(m, ar.Stop):
+			return ar.Aborted()
+
+ar.bind(accepted_at_address)
 
 # Server object.
 def listen_at_address(self, settings):
 	# Establish the listen.
 	ipp = ar.HostPort(settings.host, settings.port)
-	ar.listen(self, ipp)
+	session = ar.CreateFrame(accepted_at_address)
+	ar.listen(self, ipp, session=session)
 	m = self.select(ar.Listening, ar.NotListening, ar.Stop)
 	if isinstance(m, ar.NotListening):
 		return m
 	elif isinstance(m, ar.Stop):
 		return ar.Aborted()
 
-	# Ready for inbound connections and requests.
+	# Ready for inbound connections.
 	while True:
-		m = self.select(ar.Accepted, ar.Enquiry, ar.Abandoned, ar.Stop)
+		m = self.select(ar.Accepted, ar.Abandoned, ar.Stop)
 		if isinstance(m, ar.Accepted):
 			self.console(f'Accepted at {m.accepted_ipp}')
 			continue
@@ -51,8 +61,6 @@ def listen_at_address(self, settings):
 			continue
 		elif isinstance(m, ar.Stop):	# Control-c.
 			return ar.Aborted()
-
-		self.reply(ar.Ack())	# Respond to Enquiry
 
 ar.bind(listen_at_address)
 

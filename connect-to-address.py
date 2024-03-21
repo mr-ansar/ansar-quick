@@ -20,43 +20,40 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-'''A mimimal async, network service.
+'''A mimimal async, network client.
 
-Listen for inbound connections at a configured address. Established
-connections are expected to send an Enquiry and then close the
-connection. Termination is by user intervention, i.e. control-c.
+Connect to a configured address. If successful send an
+Enquiry and expect an Ack in response.
 '''
 import ansar.connect as ar
 
-
-# Server object.
-def listen_at_address(self, settings):
-	# Establish the listen.
-	ipp = ar.HostPort(settings.host, settings.port)
-	ar.listen(self, ipp)
-	m = self.select(ar.Listening, ar.NotListening, ar.Stop)
-	if isinstance(m, ar.NotListening):
+def connect_to_address(self, settings):
+	ipp = ar.HostPort(settings.host, settings.port)		# Where to expect the service.
+	ar.connect(self, ipp)
+	m = self.select(ar.Connected, ar.NotConnected, ar.Stop)
+	if isinstance(m, ar.NotConnected):
 		return m
 	elif isinstance(m, ar.Stop):
 		return ar.Aborted()
 
-	# Ready for inbound connections and requests.
-	while True:
-		m = self.select(ar.Accepted, ar.Enquiry, ar.Abandoned, ar.Stop)
-		if isinstance(m, ar.Accepted):
-			self.console(f'Accepted at {m.accepted_ipp}')
-			continue
-		elif isinstance(m, ar.Abandoned):
-			self.console(f'Abandoned')
-			continue
-		elif isinstance(m, ar.Stop):	# Control-c.
-			return ar.Aborted()
+	# Ready to make request.
+	r = self.ask(ar.Enquiry(),				# A request.
+		(ar.Ack, ar.Abandoned, ar.Stop),	# Possible messages.
+		self.return_address)				# Where to send the request.
 
-		self.reply(ar.Ack())	# Respond to Enquiry
+	if isinstance(r, ar.Ack):			# Intended outcome.
+		pass
+	elif isinstance(r, ar.Abandoned):
+		return ar.Faulted('Abandoned')
+	elif isinstance(r, ar.Stop):
+		return ar.Aborted()
 
-ar.bind(listen_at_address)
+	return r	# Return the result of Enquiry.
 
-# Configuration for this executable.
+ar.bind(connect_to_address)
+
+#
+#
 class Settings(object):
 	def __init__(self, host=None, port=None):
 		self.host = host
@@ -69,9 +66,7 @@ SETTINGS_SCHEMA = {
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
-# Initial values.
 factory_settings = Settings(host='127.0.0.1', port=32011)
 
-# Entry point.
 if __name__ == '__main__':
-	ar.create_object(listen_at_address, factory_settings=factory_settings)
+	ar.create_object(connect_to_address, factory_settings=factory_settings)
