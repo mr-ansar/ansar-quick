@@ -6,8 +6,14 @@ components.
 
 listen-at-address.py --- connect-to-address.py
 
-Clearest possible code that also manages to exchange some
-messages.
+Clearest possible code that manages to exchange some
+messages across a network transport.
+
+publish-a-service.py --- subscribe-to-service.py
+
+Clearest possible code that manages to exchange some
+messages across a network transport, and with zero
+network configuration.
 
 greetings.py
 
@@ -35,8 +41,8 @@ it comes togther in a GROUP. This create a starting point for subsequent
 sections;
 
 * GROUP - comes for free with $ ansar and homes.
-* HOST - need the ansar/services directory-host
-* LAN - need the ansar/services directory-lan
+* HOST - need the ansar/services ansar-host
+* LAN - need the ansar/services ansar-lan
 * WAN - need an ansar cloud account and directory
 
 Continue with exactly the same client-server combo. Move the server (i.e.
