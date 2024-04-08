@@ -22,7 +22,11 @@
 # SOFTWARE.
 '''A mimimal async, directory client.
 
-The client for the server in publish-a-service.py.
+Functionally this is a repeat of connect-to-address, except this
+version adopts the subscribe side of the publish/subscribe model to
+make connections to services.
+
+See listen-at-address.py/connect-to-address.py for more details.
 '''
 import ansar.connect as ar
 
