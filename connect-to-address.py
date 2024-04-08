@@ -22,12 +22,13 @@
 # SOFTWARE.
 '''A mimimal async, network client.
 
-Connect to a configured address. If successful send an
-Enquiry and expect an Ack in response.
+The client for the server in listen-at-address.py.
 '''
 import ansar.connect as ar
 
 def connect_to_address(self, settings):
+	'''Connect to host and port stored in settings. Make a request. Returns confirmation or why it failed.'''
+
 	ipp = ar.HostPort(settings.host, settings.port)		# Where to expect the service.
 	ar.connect(self, ipp)
 	m = self.select(ar.Connected, ar.NotConnected, ar.Stop)
@@ -35,18 +36,22 @@ def connect_to_address(self, settings):
 		return m
 	elif isinstance(m, ar.Stop):
 		return ar.Aborted()
+	server_address = self.return_address	# Where the Connected message came from.
 
 	# Ready to make request.
 	r = self.ask(ar.Enquiry(),				# A request.
-		(ar.Ack, ar.Abandoned, ar.Stop),	# Possible messages.
-		self.return_address)				# Where to send the request.
+		(ar.Ack, ar.Abandoned, ar.Stop),	# Possible response or external event.
+		server_address,						# Where to send the request.
+		seconds=3.0)						# Expected quality-of-service.
 
 	if isinstance(r, ar.Ack):			# Intended outcome.
 		pass
 	elif isinstance(r, ar.Abandoned):
-		return ar.Faulted('Abandoned')
+		return r
 	elif isinstance(r, ar.Stop):
 		return ar.Aborted()
+	elif isinstance(r, ar.SelectTimer):
+		return ar.TimedOut(r)
 
 	return r	# Return the result of Enquiry.
 
@@ -60,8 +65,8 @@ class Settings(object):
 		self.port = port
 
 SETTINGS_SCHEMA = {
-	'host': ar.Unicode(),
-	'port': ar.Integer8(),
+	'host': str,
+	'port': int,
 }
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
