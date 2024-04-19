@@ -26,11 +26,17 @@ The client for the server in listen-at-address.py.
 '''
 import ansar.connect as ar
 
+# The client object.
 def connect_to_address(self, settings):
-	'''Connect to host and port stored in settings. Make a request. Returns confirmation or why it failed.'''
 
+	# Initiate the connection.
 	ipp = ar.HostPort(settings.host, settings.port)		# Where to expect the service.
 	ar.connect(self, ipp)
+
+	# At this point can expect;
+	# 1. Confirmation of connection,
+	# 2. Failure to connect,
+	# 3. User intervention.
 	m = self.select(ar.Connected, ar.NotConnected, ar.Stop)
 	if isinstance(m, ar.NotConnected):
 		return m
@@ -38,15 +44,19 @@ def connect_to_address(self, settings):
 		return ar.Aborted()
 	server_address = self.return_address	# Where the Connected message came from.
 
-	# Ready to make request.
-	r = self.ask(ar.Enquiry(),				# A request.
-		(ar.Ack, ar.Abandoned, ar.Stop),	# Possible response or external event.
-		server_address,						# Where to send the request.
-		seconds=3.0)						# Expected quality-of-service.
+	# Make the request and expect a response. Which might be;
+	# 1. Server acknowledgement,
+	# 2. Loss of connection,
+	# 3. User intervention.
+	# 4. Time out.
+	r = self.ask(ar.Enquiry(),						# A request.
+		(ar.Ack, ar.Closed, ar.Abandoned, ar.Stop),	# Possible response or external event.
+		server_address,								# Where to send the request.
+		seconds=3.0)								# Expected quality-of-service.
 
-	if isinstance(r, ar.Ack):			# Intended outcome.
+	if isinstance(r, ar.Ack):		# Intended outcome.
 		pass
-	elif isinstance(r, ar.Abandoned):
+	elif isinstance(r, (ar.Closed, ar.Abandoned)):
 		return r
 	elif isinstance(r, ar.Stop):
 		return ar.Aborted()
@@ -71,6 +81,7 @@ SETTINGS_SCHEMA = {
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
+# Initial values.
 factory_settings = Settings(host='127.0.0.1', port=32011)
 
 if __name__ == '__main__':

@@ -29,30 +29,40 @@ connection. Termination is by user intervention, i.e. control-c.
 import ansar.connect as ar
 
 
-# Server object.
+# The server object.
 def listen_at_address(self, settings):
+
 	# Establish the listen.
 	ipp = ar.HostPort(settings.host, settings.port)
 	ar.listen(self, ipp)
+
+	# At this point can expect;
+	# 1. Confirmation of listen,
+	# 2. Rejection of listen,
+	# 3. User intervention.
 	m = self.select(ar.Listening, ar.NotListening, ar.Stop)
 	if isinstance(m, ar.NotListening):
 		return m
 	elif isinstance(m, ar.Stop):
 		return ar.Aborted()
 
-	# Ready for inbound connections and requests.
+	# At this point can expect;
+	# 1. Inbound connections,
+	# 2. Requests from existing clients,
+	# 3. Loss of connections,
+	# 4. User intervention.
 	while True:
-		m = self.select(ar.Accepted, ar.Enquiry, ar.Abandoned, ar.Stop)
+		m = self.select(ar.Accepted, ar.Enquiry, ar.Closed, ar.Abandoned, ar.Stop)
 		if isinstance(m, ar.Accepted):
-			self.console(f'Accepted at {m.accepted_ipp}')
+			self.console(f'Accepted {m.accepted_ipp}')			# Acquired a client.
 			continue
-		elif isinstance(m, ar.Abandoned):
-			self.console(f'Abandoned')
+		elif isinstance(m, (ar.Closed, ar.Abandoned)):
+			self.console(f'Closed/Abandoned {m.opened_ipp}')	# Lost a client.
 			continue
 		elif isinstance(m, ar.Stop):	# Control-c.
-			return ar.Aborted()
+			return ar.Aborted()			# Terminate this process.
 
-		self.reply(ar.Ack())	# Respond to Enquiry
+		self.reply(ar.Ack())			# Must be a client request - respond.
 
 ar.bind(listen_at_address)
 
@@ -72,6 +82,5 @@ ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 # Initial values.
 factory_settings = Settings(host='127.0.0.1', port=32011)
 
-# Entry point.
 if __name__ == '__main__':
 	ar.create_object(listen_at_address, factory_settings=factory_settings)
