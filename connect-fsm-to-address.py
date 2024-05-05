@@ -26,6 +26,7 @@ A finite-state-machine implementation of the Enquiry-Ack sessions. A plug-in
 replacement for connect-to-address or connect-session-to-address.
 '''
 import ansar.connect as ar
+from hello_welcome import *
 
 # Client FSM object.
 class INITIAL: pass
@@ -37,6 +38,9 @@ class ConnectToAddress(ar.Point, ar.StateMachine):
 		ar.Point.__init__(self)
 		ar.StateMachine.__init__(self, INITIAL)
 		self.settings = settings
+		self.client_name = settings.client_name
+		self.ipp = None
+		self.connected = None
 
 def ConnectToAddress_INITIAL_Start(self, message):
 	self.ipp = ar.HostPort(self.settings.host, self.settings.port)
@@ -44,7 +48,9 @@ def ConnectToAddress_INITIAL_Start(self, message):
 	return PENDING
 
 def ConnectToAddress_PENDING_Connected(self, message):
-	self.reply(ar.Enquiry())
+	self.connected = message
+	hello = Hello(my_name=self.client_name)
+	self.reply(hello)
 	return CONNECTED
 
 def ConnectToAddress_PENDING_NotConnected(self, message):
@@ -53,7 +59,7 @@ def ConnectToAddress_PENDING_NotConnected(self, message):
 def ConnectToAddress_PENDING_Stop(self, message):
 	self.complete(ar.Aborted())
 
-def ConnectToAddress_CONNECTED_Ack(self, message):
+def ConnectToAddress_CONNECTED_Welcome(self, message):
 	self.complete(message)
 
 def ConnectToAddress_CONNECTED_Abandoned(self, message):
@@ -70,7 +76,7 @@ CONNECT_TO_ADDRESS_DISPATCH = {
 		(ar.Connected, ar.NotConnected, ar.Stop), ()
 	),
 	CONNECTED: (
-		(ar.Ack, ar.Abandoned, ar.Stop,), ()
+		(Welcome, ar.Abandoned, ar.Stop,), ()
 	),
 }
 
@@ -79,18 +85,20 @@ ar.bind(ConnectToAddress, CONNECT_TO_ADDRESS_DISPATCH)
 #
 #
 class Settings(object):
-	def __init__(self, host=None, port=None):
+	def __init__(self, client_name=None, host=None, port=None):
+		self.client_name = client_name
 		self.host = host
 		self.port = port
 
 SETTINGS_SCHEMA = {
+	'client_name': ar.Unicode(),
 	'host': ar.Unicode(),
 	'port': ar.Integer8(),
 }
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
-factory_settings = Settings(host='127.0.0.1', port=32011)
+factory_settings = Settings(client_name='Gladys', host='127.0.0.1', port=32011)
 
 if __name__ == '__main__':
 	ar.create_object(ConnectToAddress, factory_settings=factory_settings)

@@ -29,49 +29,54 @@ make itself available to clients.
 See listen-at-address.py for more details.
 '''
 import ansar.connect as ar
+from hello_welcome import *
 
-
+# The service object.
 def publish_a_service(self, settings):
-	'''Publish this object under the name stored in settings. Returns intervention.'''
+	server_name = settings.server_name
 
 	listing = settings.listing
 	ar.publish(self, listing)
+
 	m = self.select(ar.Published, ar.NotPublished, ar.Stop)
 	if isinstance(m, ar.NotPublished):
 		return m
 	elif isinstance(m, ar.Stop):
 		return ar.Aborted()
 
-	# Ready for inbound connections and requests.
 	while True:
-		m = self.select(ar.Delivered, ar.Enquiry, ar.Dropped, ar.Cleared, ar.Stop)
+		m = self.select(ar.Delivered, Hello, ar.Dropped, ar.Cleared, ar.Stop)
 		if isinstance(m, ar.Delivered):
-			self.console(f'Delivered to {m.agent_address}')
-		elif isinstance(m, ar.Enquiry):
-			self.reply(ar.Ack())			# Respond to Enquiry
-		elif isinstance(m, ar.Dropped):
-			self.console(f'Dropped {m.reason}')
-		elif isinstance(m, ar.Cleared):
-			self.console(f'Cleared')
-		else:	# Control-c.
-			return ar.Aborted()
+			self.console(f'Delivered to {m.agent_address}')		# Acquired a subscriber.
+			continue
+		elif isinstance(m, Hello):
+			pass
+		elif isinstance(m, (ar.Cleared, ar.Dropped)):			# Lost a subscriber.
+			self.console(f'Cleared/Dropped')
+			continue
+		else:
+			return ar.Aborted()			# Control-c.
+
+		welcome = Welcome(your_name=m.my_name, my_name=server_name)		
+		self.reply(welcome)
 
 ar.bind(publish_a_service)
 
 # Configuration for this executable.
 class Settings(object):
-	def __init__(self, listing=None):
+	def __init__(self, server_name=None, listing=None):
+		self.server_name = server_name
 		self.listing = listing
 
 SETTINGS_SCHEMA = {
-	'listing': str,
+	'server_name': ar.Unicode(),
+	'listing': ar.Unicode(),
 }
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
 # Initial values.
-factory_settings = Settings(listing='enquiry-ack')
+factory_settings = Settings(server_name='Buster', listing='hello-welcome')
 
-# Entry point.
 if __name__ == '__main__':
 	ar.create_node(publish_a_service, factory_settings=factory_settings)

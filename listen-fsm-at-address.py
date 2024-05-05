@@ -26,6 +26,7 @@ A finite-state-machine implementation of the Enquiry-Ack sessions. A plug-in
 replacement for listen-at-address or listen-session-at-address.
 '''
 import ansar.connect as ar
+from hello_welcome import *
 
 
 # Server FSM object.
@@ -38,6 +39,9 @@ class ListenAtAddress(ar.Point, ar.StateMachine):
 		ar.Point.__init__(self)
 		ar.StateMachine.__init__(self, INITIAL)
 		self.settings = settings
+		self.server_name = settings.server_name
+		self.ipp = None
+		self.listening = None
 
 def ListenAtAddress_INITIAL_Start(self, message):
 	self.ipp = ar.HostPort(self.settings.host, self.settings.port)
@@ -58,8 +62,9 @@ def ListenAtAddress_LISTENING_Accepted(self, message):
 	self.console(f'Accepted at {message.accepted_ipp}')
 	return LISTENING
 
-def ListenAtAddress_LISTENING_Enquiry(self, message):
-	self.reply(ar.Ack())
+def ListenAtAddress_LISTENING_Hello(self, message):
+	welcome = Welcome(your_name=message.my_name, my_name=self.server_name)
+	self.reply(welcome)
 	return LISTENING
 
 def ListenAtAddress_LISTENING_Abandoned(self, message):
@@ -77,7 +82,7 @@ LISTEN_AT_ADDRESS_DISPATCH = {
 		(ar.Listening, ar.NotListening, ar.Stop), ()
 	),
 	LISTENING: (
-		(ar.Accepted, ar.Enquiry, ar.Abandoned, ar.Stop,), ()
+		(ar.Accepted, Hello, ar.Abandoned, ar.Stop,), ()
 	),
 }
 
@@ -85,11 +90,13 @@ ar.bind(ListenAtAddress, LISTEN_AT_ADDRESS_DISPATCH)
 
 # Configuration for this executable.
 class Settings(object):
-	def __init__(self, host=None, port=None):
+	def __init__(self, server_name=None, host=None, port=None):
+		self.server_name = server_name
 		self.host = host
 		self.port = port
 
 SETTINGS_SCHEMA = {
+	'server_name': ar.Unicode(),
 	'host': ar.Unicode(),
 	'port': ar.Integer8(),
 }
@@ -97,7 +104,7 @@ SETTINGS_SCHEMA = {
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
 # Initial values.
-factory_settings = Settings(host='127.0.0.1', port=32011)
+factory_settings = Settings(server_name='Buster', host='127.0.0.1', port=32011)
 
 # Entry point.
 if __name__ == '__main__':

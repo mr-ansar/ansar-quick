@@ -29,12 +29,16 @@ make connections to services.
 See listen-at-address.py/connect-to-address.py for more details.
 '''
 import ansar.connect as ar
+from hello_welcome import *
 
+# The subscriber object.
 def subscribe_to_service(self, settings):
-	'''Subscribe to the name stored in settings. Make a request. Returns confirmation or why it failed.'''
+	client_name = settings.client_name
 
+	# Declare interest in the service.
 	listing = settings.listing
 	ar.subscribe(self, listing)
+
 	m = self.select(ar.Subscribed, ar.Stop)
 	if isinstance(m, ar.Stop):
 		return ar.Aborted()
@@ -44,15 +48,13 @@ def subscribe_to_service(self, settings):
 		return ar.Aborted()
 	server_address = self.return_address
 
-	# Ready to make request.
-	r = self.ask(ar.Enquiry(),			# A request.
-		(ar.Ack, ar.Dropped, ar.Stop),	# Possible response or external event.
-		server_address,					# Where to send the request.
-		seconds=3.0)					# Expected quality-of-service.
+	hello = Hello(my_name=client_name)
+	self.send(hello, server_address)
+	r = self.select(Welcome, ar.Cleared, ar.Dropped, ar.Stop, seconds=3.0)
 
-	if isinstance(r, ar.Ack):			# Intended outcome.
+	if isinstance(r, Welcome):			# Intended outcome.
 		pass
-	elif isinstance(r, ar.Dropped):
+	elif isinstance(r, (ar.Cleared, ar.Dropped)):
 		return r
 	elif isinstance(r, ar.Stop):
 		return ar.Aborted()
@@ -63,20 +65,21 @@ def subscribe_to_service(self, settings):
 
 ar.bind(subscribe_to_service)
 
-#
-#
+# Configuration for this executable.
 class Settings(object):
-	def __init__(self, listing=None):
+	def __init__(self, client_name=None, listing=None):
+		self.client_name = client_name
 		self.listing = listing
 
 SETTINGS_SCHEMA = {
-	'listing': str,
+	'client_name': ar.Unicode(),
+	'listing': ar.Unicode(),
 }
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
 # Initial values.
-factory_settings = Settings(listing='enquiry-ack')
+factory_settings = Settings(client_name='Gladys', listing='hello-welcome')
 
 if __name__ == '__main__':
 	ar.create_node(subscribe_to_service, factory_settings=factory_settings)

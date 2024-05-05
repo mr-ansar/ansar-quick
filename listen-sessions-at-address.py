@@ -26,13 +26,15 @@ A session-based implementation of the Enquiry-Ack sessions. A plug-in
 replacement for listen-at-address or listen-fsm-at-address.
 '''
 import ansar.connect as ar
+from hello_welcome import *
 
 # Session object.
-def accepted_at_address(self, **kv):
+def accepted_at_address(self, server_name, **kv):
 	while True:
-		m = self.select(ar.Enquiry, ar.Stop)
-		if isinstance(m, ar.Enquiry):
-			self.reply(ar.Ack())
+		m = self.select(Hello, ar.Stop)
+		if isinstance(m, Hello):
+			welcome = Welcome(your_name=m.my_name, my_name=server_name)
+			self.reply(welcome)
 		elif isinstance(m, ar.Stop):
 			return ar.Aborted()
 
@@ -40,9 +42,11 @@ ar.bind(accepted_at_address)
 
 # Server object.
 def listen_at_address(self, settings):
+	server_name = settings.server_name
+
 	# Establish the listen.
 	ipp = ar.HostPort(settings.host, settings.port)
-	session = ar.CreateFrame(accepted_at_address)
+	session = ar.CreateFrame(accepted_at_address, server_name)
 	ar.listen(self, ipp, session=session)
 	m = self.select(ar.Listening, ar.NotListening, ar.Stop)
 	if isinstance(m, ar.NotListening):
@@ -66,19 +70,21 @@ ar.bind(listen_at_address)
 
 # Configuration for this executable.
 class Settings(object):
-	def __init__(self, host=None, port=None):
+	def __init__(self, server_name=None, host=None, port=None):
+		self.server_name = server_name
 		self.host = host
 		self.port = port
 
 SETTINGS_SCHEMA = {
-	'host': ar.Unicode(),
-	'port': ar.Integer8(),
+	'server_name': str,
+	'host': str,
+	'port': int,
 }
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
 # Initial values.
-factory_settings = Settings(host='127.0.0.1', port=32011)
+factory_settings = Settings(server_name='Buster', host='127.0.0.1', port=32011)
 
 # Entry point.
 if __name__ == '__main__':

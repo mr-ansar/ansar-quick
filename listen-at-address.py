@@ -23,14 +23,15 @@
 '''A mimimal async, network service.
 
 Listen for inbound connections at a configured address. Established
-connections are expected to send an Enquiry and then close the
-connection. Termination is by user intervention, i.e. control-c.
+clients are expected to send a Hello, wait for a Welcome and then close
+the connection. Termination is by user intervention, i.e. control-c.
 '''
 import ansar.connect as ar
-
+from hello_welcome import *
 
 # The server object.
 def listen_at_address(self, settings):
+	server_name = settings.server_name
 
 	# Establish the listen.
 	ipp = ar.HostPort(settings.host, settings.port)
@@ -52,7 +53,7 @@ def listen_at_address(self, settings):
 	# 3. Loss of connections,
 	# 4. User intervention.
 	while True:
-		m = self.select(ar.Accepted, ar.Enquiry, ar.Closed, ar.Abandoned, ar.Stop)
+		m = self.select(ar.Accepted, Hello, ar.Closed, ar.Abandoned, ar.Stop)
 		if isinstance(m, ar.Accepted):
 			self.console(f'Accepted {m.accepted_ipp}')			# Acquired a client.
 			continue
@@ -62,17 +63,26 @@ def listen_at_address(self, settings):
 		elif isinstance(m, ar.Stop):	# Control-c.
 			return ar.Aborted()			# Terminate this process.
 
-		self.reply(ar.Ack())			# Must be a client request - respond.
+		# Must have been the initial greeting.
+		hello = m
+
+		# Provide the expected response.
+		welcome = Welcome(your_name=hello.my_name, my_name=server_name)
+		self.reply(welcome)
+
+		self.console(f'At server - {welcome}')
 
 ar.bind(listen_at_address)
 
 # Configuration for this executable.
 class Settings(object):
-	def __init__(self, host=None, port=None):
+	def __init__(self, server_name=None, host=None, port=None):
+		self.server_name = server_name
 		self.host = host
 		self.port = port
 
 SETTINGS_SCHEMA = {
+	'server_name': ar.Unicode(),
 	'host': ar.Unicode(),
 	'port': ar.Integer8(),
 }
@@ -80,7 +90,7 @@ SETTINGS_SCHEMA = {
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
 # Initial values.
-factory_settings = Settings(host='127.0.0.1', port=32011)
+factory_settings = Settings(server_name='Buster', host='127.0.0.1', port=32011)
 
 if __name__ == '__main__':
 	ar.create_object(listen_at_address, factory_settings=factory_settings)

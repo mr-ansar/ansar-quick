@@ -26,23 +26,26 @@ A session-based implementation of the Enquiry-Ack sessions. A plug-in
 replacement for connect-to-address or connect-fsm-to-address.
 '''
 import ansar.connect as ar
+from hello_welcome import *
 
 # Session object.
-def connected_to_address(self, remote_address=None, **kv):
-	r = self.ask(ar.Enquiry(),		# A request.
-		(ar.Ack, ar.Stop),			# Possible messages.
-		remote_address)				# Where to send the request.
+def connected_to_address(self, client_name, remote_address=None, **kv):
+	hello = Hello(my_name=client_name)
+	self.send(hello, remote_address)
 
-	if isinstance(r, ar.Stop):
+	m = self.select(Welcome, ar.Stop)
+	if isinstance(m, ar.Stop):
 		return ar.Aborted()
-	return r
+	return m
 
 ar.bind(connected_to_address)
 
 # Client object.
 def connect_to_address(self, settings):
-	ipp = ar.HostPort(settings.host, settings.port)		# Where to expect the service.
-	session = ar.CreateFrame(connected_to_address)		# Description of a session.
+	client_name = settings.client_name
+
+	ipp = ar.HostPort(settings.host, settings.port)				# Where to expect the service.
+	session = ar.CreateFrame(connected_to_address, client_name)	# Description of a session.
 	ar.connect(self, ipp, session=session)
 	m = self.select(ar.Connected, ar.NotConnected, ar.Stop)
 	if isinstance(m, ar.NotConnected):
@@ -53,7 +56,7 @@ def connect_to_address(self, settings):
 	# Session has started.
 	m = self.select(ar.Abandoned, ar.Closed, ar.Stop)
 	if isinstance(m, ar.Abandoned):
-		return ar.Faulted('Abandoned')
+		return m
 	elif isinstance(m, ar.Closed):
 		return m.value
 	elif isinstance(m, ar.Stop):
@@ -64,18 +67,20 @@ ar.bind(connect_to_address)
 #
 #
 class Settings(object):
-	def __init__(self, host=None, port=None):
+	def __init__(self, client_name=None, host=None, port=None):
+		self.client_name = client_name
 		self.host = host
 		self.port = port
 
 SETTINGS_SCHEMA = {
-	'host': ar.Unicode(),
-	'port': ar.Integer8(),
+	'client_name': str,
+	'host': str,
+	'port': int,
 }
 
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
-factory_settings = Settings(host='127.0.0.1', port=32011)
+factory_settings = Settings(client_name='Gladys', host='127.0.0.1', port=32011)
 
 if __name__ == '__main__':
 	ar.create_object(connect_to_address, factory_settings=factory_settings)

@@ -25,9 +25,11 @@
 The client for the server in listen-at-address.py.
 '''
 import ansar.connect as ar
+from hello_welcome import *
 
 # The client object.
 def connect_to_address(self, settings):
+	client_name = settings.client_name
 
 	# Initiate the connection.
 	ipp = ar.HostPort(settings.host, settings.port)		# Where to expect the service.
@@ -44,37 +46,45 @@ def connect_to_address(self, settings):
 		return ar.Aborted()
 	server_address = self.return_address	# Where the Connected message came from.
 
-	# Make the request and expect a response. Which might be;
+	# Make the request.
+	hello = Hello(my_name=client_name)
+	self.send(hello, server_address)
+
+	# Expect a response. Which might be;
 	# 1. Server acknowledgement,
 	# 2. Loss of connection,
 	# 3. User intervention.
 	# 4. Time out.
-	r = self.ask(ar.Enquiry(),						# A request.
-		(ar.Ack, ar.Closed, ar.Abandoned, ar.Stop),	# Possible response or external event.
-		server_address,								# Where to send the request.
-		seconds=3.0)								# Expected quality-of-service.
+	m = self.select(Welcome, ar.Closed, ar.Abandoned, ar.Stop, seconds=3.0)
 
-	if isinstance(r, ar.Ack):		# Intended outcome.
+	if isinstance(m, Welcome):		# Intended outcome.
 		pass
-	elif isinstance(r, (ar.Closed, ar.Abandoned)):
-		return r
-	elif isinstance(r, ar.Stop):
+	elif isinstance(m, (ar.Closed, ar.Abandoned)):
+		return m
+	elif isinstance(m, ar.Stop):
 		return ar.Aborted()
-	elif isinstance(r, ar.SelectTimer):
-		return ar.TimedOut(r)
+	elif isinstance(m, ar.SelectTimer):
+		return ar.TimedOut(m)
 
-	return r	# Return the result of Enquiry.
+	# Must have been the proper response.
+	welcome = m
+
+	self.console(f'At client - {welcome}')
+
+	return welcome		# Return the result of Hello.
 
 ar.bind(connect_to_address)
 
 #
 #
 class Settings(object):
-	def __init__(self, host=None, port=None):
+	def __init__(self, client_name=None, host=None, port=None):
+		self.client_name = client_name
 		self.host = host
 		self.port = port
 
 SETTINGS_SCHEMA = {
+	'client_name': str,
 	'host': str,
 	'port': int,
 }
@@ -82,7 +92,7 @@ SETTINGS_SCHEMA = {
 ar.bind(Settings, object_schema=SETTINGS_SCHEMA)
 
 # Initial values.
-factory_settings = Settings(host='127.0.0.1', port=32011)
+factory_settings = Settings(client_name='Gladys', host='127.0.0.1', port=32011)
 
 if __name__ == '__main__':
 	ar.create_object(connect_to_address, factory_settings=factory_settings)
